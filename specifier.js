@@ -3,7 +3,18 @@
 var fs   = require('fs'),
     path = require('path'),
     shjs = require('shelljs'),
-    hash = require('shorthash');
+    hash = require('shorthash'),
+    sh   = require('child_process').execSync,
+    startDirectory = process.argv[2];
+
+// Check if there is valid input (a path to a folder), exit if no valid input given.
+
+if (typeof startDirectory !== undefined && fs.statSync(startDirectory).isDirectory()) {
+addShorthashToFilename();
+} else {
+console.log("Invalid starting directory, please provide a valid path to a starting directory");
+process.exit();
+}
 
 // RegEx sub-strings used to compile match expression for all supported filenames.
 var imageTypes = 'jpeg|jpg|png|gif|tif|tiff|bmp|dng|raw',
@@ -25,12 +36,60 @@ function timeNow(unit) {
     }
 }
 
+function getFilename (filePath) {
+        return path.basename(filePath);
+}
 
-if (typeof process.argv[2] !== undefined && fs.statSync(process.argv[2]).isDirectory()) {
+function getFileBasename (fileFullname) {
+    if ( fileFullname.includes('Screen Shot') ) {
+        var fileBasename = fileFullname.substring(0, fileFullname.lastIndexOf('.') );
+    } else { 
+        var fileBasename = fileFullname.substring(0, fileFullname.indexOf('.') );
+    }
+    return fileBasename;
+}
 
-    shjs.find(process.argv[2]).toString().split(',').forEach(function (filePath) {
-        
-    if (fs.statSync(filePath).isFile()) {
+
+
+
+function addShorthashToFilename() {
+    shjs.find(startDirectory).toString().split(',').forEach(function (filePath) {
+
+        if (fs.statSync(filePath).isFile()) {
+            let fileFullname = getFilename(filePath);
+            let fileExt = (fileFullname.match(fileExtRegEx) !== null ) ? filePath.match(fileExtRegEx)[0] : '';
+            //let fileBasename = fileFullname.replace(fileExtRegEx, "");
+            let fileBasename = getFileBasename(fileFullname);
+            let pathBasename = filePath.replace(fileExtRegEx, "");
+            
+            // Here we have three capture groups, we start from the beginning of the line
+            // and match 1 or more of anything up until the last forward slash before the filename.
+            // Since all regexp match results are array indexed by capture group we grab the first
+            // part of the string e.g. the base folder.
+            
+            //console.log(filePath);
+            //console.log(path.dirname(filePath));
+            
+            let pathBaseFolder = path.dirname(filePath);
+
+            // Experiment with using nanoseconds as secondary input to ensure unique hash in situations where
+            // one filename has multiple extensions and uniqueness is desired, or where the same filename is
+            // programmatically generated over and over.
+            //let fileBasenameHash = hash.unique(`${fileBasename}${timeNow('nano')}`);
+            let fileBasenameHash = hash.unique(fileBasename);
+
+            console.log(`File basename string fed to hash algo: ${fileBasename}`);
+            console.log(`Hash generated from file basename: ${fileBasenameHash}`);
+            console.log(`${pathBaseFolder}/${fileBasename}_id-${fileBasenameHash}${fileExt}`);
+
+            // Debuging printouts...
+            console.log(pathBasename);
+            //console.log(fileBasename.replace(fileExtRegEx, ""));
+        }
+    });
+
+
+    /*if (fs.statSync(filePath).isFile()) {
         let fileFullname = filePath.match(/(^.+)(\/)([a-zA-Z\-_\.]{1,64}$)/)[3];
         let fileExt = (filePath.match(fileExtRegEx) !== null ) ? filePath.match(fileExtRegEx)[0] : '';
         let fileBasename = fileFullname.replace(fileExtRegEx, "");
@@ -48,12 +107,12 @@ if (typeof process.argv[2] !== undefined && fs.statSync(process.argv[2]).isDirec
         console.log(`${pathBaseFolder}/${fileBasename}_id-${fileBasenameHash}${fileExt}`);
 
         // Debuging printouts...
-        //console.log(pathBasename);
+        console.log(pathBasename);
         //console.log(fileBasename.replace(fileExtRegEx, ""));
-    }
-    
-});
+    }*/
+}
 
-} else {
-    console.log("Please specify a base directory to begin from.")
+module.exports = {
+    "getFilename": getFilename,
+    "getFileBasename": getFileBasename
 }
